@@ -1,0 +1,48 @@
+name: Build APK
+
+on:
+  push:
+  workflow_dispatch:
+
+env:
+  GODOT_VERSION: 4.3
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-24.04
+    container:
+      image: barichello/godot-ci:4.3
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Godot
+        run: |
+          mkdir -v -p ~/.local/share/godot/export_templates/
+          mkdir -v -p ~/.config/
+          mv /root/.config/godot ~/.config/godot
+          mv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+
+      - name: Ekstrak zip project
+        run: |
+          ZIP=$(find . -maxdepth 2 -name "*.zip" -not -path "./.git/*" | head -n 1)
+          mkdir -p /tmp/src
+          if [ -n "$ZIP" ]; then
+            unzip -q -o "$ZIP" -d /tmp/src
+          else
+            cp -r . /tmp/src/
+          fi
+
+      - name: Build APK
+        run: |
+          PROJECT_FILE=$(find /tmp/src -name project.godot | head -n 1)
+          PROJECT_DIR=$(dirname "$PROJECT_FILE")
+          mkdir -p "$GITHUB_WORKSPACE/build"
+          cd "$PROJECT_DIR"
+          godot --headless --verbose --import || true
+          godot --headless --verbose --export-debug "Android" "$GITHUB_WORKSPACE/build/BurgerWrapRush.apk"
+          ls -l "$GITHUB_WORKSPACE/build/BurgerWrapRush.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BurgerWrapRush-apk
+          path: build/BurgerWrapRush.apk
